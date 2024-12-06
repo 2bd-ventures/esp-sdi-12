@@ -20,6 +20,7 @@ extern "C"
     typedef struct
     {
         uint8_t gpio_num;
+        int8_t oe_num;
         sdi12_bus_timing_t bus_timing;
     } sdi12_bus_config_t;
 

@@ -23,6 +23,7 @@
 typedef struct sdi12_bus
 {
     uint8_t gpio_num;
+    int8_t oe_num;
     sdi12_bus_timing_t timing;
     rmt_channel_handle_t rmt_tx_channel;
     rmt_channel_handle_t rmt_rx_channel;
@@ -65,6 +66,11 @@ static const char *TAG = "sdi12 bus";
  */
 static esp_err_t config_rmt_as_tx(sdi12_bus_t *bus)
 {
+    if (bus->oe_num != -1)
+    {
+        gpio_set_level(bus->oe_num, 1); // enable OE
+    }
+
     rmt_tx_channel_config_t tx_channel_config = {
         .gpio_num = bus->gpio_num,        // GPIO number
         .clk_src = SDI12_RMT_CLK_SRC,   // select source clock
@@ -103,6 +109,11 @@ static bool sdi12_rmt_receive_done_callback(rmt_channel_handle_t channel, const 
  */
 static esp_err_t config_rmt_as_rx(sdi12_bus_t *bus)
 {
+    if (bus->oe_num != -1)
+    {
+        gpio_set_level(bus->oe_num, 0); // disable OE
+    }
+
     rmt_rx_channel_config_t rx_channel_config = {
         .gpio_num = bus->gpio_num,
         .clk_src = SDI12_RMT_CLK_SRC,
@@ -147,7 +158,17 @@ static esp_err_t set_idle_bus(sdi12_bus_t *bus)
 
     ESP_RETURN_ON_ERROR(gpio_config(&gpio_conf), TAG, "set idle bus error");
 
-    return gpio_set_level(bus->gpio_num, 0);
+    if (bus->oe_num != -1)
+    {
+        int retval;
+        retval = gpio_set_level(bus->oe_num, 0);
+        retval |= gpio_set_level(bus->gpio_num, 0);
+        return retval;
+    }
+    else
+    {
+        return gpio_set_level(bus->gpio_num, 0);
+    }
 }
 
 /**
@@ -622,10 +643,15 @@ esp_err_t sdi12_new_bus(sdi12_bus_config_t *config, sdi12_bus_handle_t *sdi12_bu
     // ESP_RETURN_ON_FALSE(GPIO_IS_VALID_DIGITAL_IO_PAD(config->gpio_num), ESP_ERR_INVALID_ARG, TAG, "Invalid GPIO pin");
     ESP_RETURN_ON_FALSE(GPIO_IS_VALID_OUTPUT_GPIO(config->gpio_num), ESP_ERR_INVALID_ARG, TAG, "Invalid GPIO pin");
 
+    if (config->oe_num != -1) {
+        ESP_RETURN_ON_FALSE(GPIO_IS_VALID_OUTPUT_GPIO(config->oe_num), ESP_ERR_INVALID_ARG, TAG, "Invalid GPIO pin");
+    }
+    
     sdi12_bus_t *bus = calloc(1, sizeof(sdi12_bus_t));
 
     ESP_RETURN_ON_FALSE(bus, ESP_ERR_NO_MEM, TAG, "can't allocate bus");
 
+    bus->oe_num = config->oe_num;
     bus->gpio_num = config->gpio_num;
     bus->timing.break_us = config->bus_timing.break_us != 0 ? config->bus_timing.break_us : SDI12_BREAK_US;
     bus->timing.post_break_marking_us = config->bus_timing.post_break_marking_us != 0 ? config->bus_timing.post_break_marking_us : SDI12_POST_BREAK_MARKING_US;
