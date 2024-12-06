@@ -6,12 +6,11 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#include "esp_check.h"
-#include "esp_log.h"
-#include "esp_err.h"
-
 #include "driver/uart.h"
 #include "driver/gpio.h"
+
+#include "esp_log.h"
+#include "esp_err.h"
 
 #include "sdi12_bus.h"
 
@@ -34,18 +33,20 @@
 #define TERMINAL_TEST_RTS (UART_PIN_NO_CHANGE)
 #define TERMINAL_TEST_CTS (UART_PIN_NO_CHANGE)
 
-#define TERMINAL_UART_PORT_NUM   (CONFIG_EXAMPLE_UART_PORT_NUM)
-#define TERMINAL_UART_BAUD_RATE  (CONFIG_EXAMPLE_UART_BAUD_RATE)
+#define TERMINAL_UART_PORT_NUM (CONFIG_EXAMPLE_UART_PORT_NUM)
+#define TERMINAL_UART_BAUD_RATE (CONFIG_EXAMPLE_UART_BAUD_RATE)
 #define TERMINAL_TASK_STACK_SIZE (CONFIG_EXAMPLE_TASK_STACK_SIZE)
 
-#define SDI12_DATA_GPIO CONFIG_EXAMPLE_SDI12_BUS_GPIO
+#define SDI12_DATA_GPIO GPIO_NUM_2
+#define SDI12_RMT_TX_CHANNEL 0
+#define SDI12_RMT_RX_CHANNEL 0
 
 #define BUF_SIZE (1024)
 
 static const char *TAG = "SDI12-UART-TERMINAL";
 
 static char response[85] = "";
-static sdi12_bus_handle_t sdi12_bus;
+static sdi12_bus_t *sdi12_bus;
 
 static void uart_terminal_task(void *arg)
 {
@@ -66,7 +67,7 @@ static void uart_terminal_task(void *arg)
             data[len] = '\0';
             ESP_LOGI(TAG, "Got data (%d bytes): %s", len, data);
 
-            ret = sdi12_bus_send_cmd(sdi12_bus, (const char *)data, crc, response, sizeof(response), SDI12_DEFAULT_RESPONSE_TIMEOUT);
+            ret = sdi12_bus_send_cmd(sdi12_bus, (const char *)data, crc, response, sizeof(response), 0);
             uart_write_bytes(TERMINAL_UART_PORT_NUM, (const char *)response, strlen(response));
 
             if (ret != ESP_OK)
@@ -110,12 +111,12 @@ void app_main(void)
 
     sdi12_bus_config_t config = {
         .gpio_num = SDI12_DATA_GPIO,
-        .bus_timing = { 
-            .post_break_marking_us = 9000, 
-        },
-    };
+        .rmt_tx_channel = SDI12_RMT_TX_CHANNEL,
+        .rmt_rx_channel = SDI12_RMT_RX_CHANNEL,
+        .bus_timing = {
+            .post_break_marking_us = 9000}};
 
-    ESP_ERROR_CHECK(sdi12_new_bus(&config, &sdi12_bus));
+    sdi12_bus = sdi12_bus_init(&config);
 
     ESP_LOGI(TAG, "SDI12 BUS initialization DONE");
 

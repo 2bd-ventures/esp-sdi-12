@@ -1,13 +1,4 @@
-menu "SDI12 <-> UART Configuration"
-    
-    config EXAMPLE_SDI12_BUS_GPIO
-        int "SDI12 bus pin number"
-        range 0 34 if IDF_TARGET_ESP32
-        range 0 46 if IDF_TARGET_ESP32S2 || IDF_TARGET_ESP32S3
-        range 0 19 if IDF_TARGET_ESP32C3
-        default 2
-        help
-            GPIO number for SDI12 bus pin. 
+menu "Echo Example Configuration"
 
     config EXAMPLE_UART_PORT_NUM
         int "UART port number"
@@ -49,7 +40,7 @@ menu "SDI12 <-> UART Configuration"
     config EXAMPLE_TASK_STACK_SIZE
         int "UART echo example task stack size"
         range 1024 16384
-        default 2560
+        default 2048
         help
             Defines stack size for UART echo example. Insufficient stack size can cause crash.
 
