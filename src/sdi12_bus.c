@@ -306,7 +306,11 @@ static esp_err_t read_response_line(sdi12_bus_t *bus, char *out_buffer, size_t o
         return ret;
     }
 
-    rmt_symbol_word_t raw_symbols[128];
+    // Initial Break & marking + chars. Every char need 10 bits transfers so it needs 5 rmt_symbol_word
+    // We expect up to 80 bytes so we need 80 * 5 + 1 = approx. 402 symbols
+    // This will also depend on the number of consecutive bits. 
+    // Example 0xFF 0xFF will leverage data compression since we will have 16 '1s'
+    rmt_symbol_word_t raw_symbols[402]; // play safe
     rmt_rx_done_event_data_t rx_data;
     uint32_t aux_timeout = timeout != 0 ? timeout : SDI12_DEFAULT_RESPONSE_TIMEOUT;
 
