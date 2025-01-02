@@ -117,7 +117,7 @@ static esp_err_t config_rmt_as_rx(sdi12_bus_t *bus)
     rmt_rx_channel_config_t rx_channel_config = {
         .gpio_num = bus->gpio_num,
         .clk_src = SDI12_RMT_CLK_SRC,
-        .mem_block_symbols = 128,
+        .mem_block_symbols = 320,
         .resolution_hz = 1 * 1000 * 1000, // 1MHz tick resolution, i.e. 1 tick = 1us
         .flags = {
             .io_loop_back = false,
@@ -307,10 +307,7 @@ static esp_err_t read_response_line(sdi12_bus_t *bus, char *out_buffer, size_t o
     }
 
     // Initial Break & marking + chars. Every char need 10 bits transfers so it needs 5 rmt_symbol_word
-    // We expect up to 80 bytes so we need 80 * 5 + 1 = approx. 402 symbols
-    // This will also depend on the number of consecutive bits. 
-    // Example 0xFF 0xFF will leverage data compression since we will have 16 '1s'
-    rmt_symbol_word_t raw_symbols[402]; // play safe
+    rmt_symbol_word_t raw_symbols[320]; // assuming 4 symbols per byte .. 80 * 4 = 320 (must be even)
     rmt_rx_done_event_data_t rx_data;
     uint32_t aux_timeout = timeout != 0 ? timeout : SDI12_DEFAULT_RESPONSE_TIMEOUT;
 
