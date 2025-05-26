@@ -128,10 +128,21 @@ static esp_err_t config_rmt_as_rx(sdi12_bus_t *bus)
 
     // Workaround to enable PULLDOWN on pin. rmt_new_rx_channel enable by default pull up
     // and there is no way to change it.
-    gpio_hold_en(bus->gpio_num);
+    // gpio_hold_en(bus->gpio_num);
+
+    // Configure GPIO before RMT
+    gpio_config_t gpio_conf = {
+        .intr_type = GPIO_INTR_DISABLE,
+        .mode = GPIO_MODE_INPUT,
+        .pull_down_en = true,
+        .pull_up_en = false,
+        .pin_bit_mask = 1ULL << bus->gpio_num,
+    };
+    ESP_RETURN_ON_ERROR(gpio_config(&gpio_conf), TAG, "gpio config failed");
+
     ESP_RETURN_ON_ERROR(rmt_new_rx_channel(&rx_channel_config, &bus->rmt_rx_channel), TAG, "create rmt rx channel failed");
-    gpio_hold_dis(bus->gpio_num);
-    gpio_set_pull_mode(bus->gpio_num, GPIO_PULLDOWN_ONLY);
+    // gpio_hold_dis(bus->gpio_num);
+    // gpio_set_pull_mode(bus->gpio_num, GPIO_PULLDOWN_ONLY);
 
     rmt_rx_event_callbacks_t cbs = {
         .on_recv_done = sdi12_rmt_receive_done_callback,
@@ -312,17 +323,17 @@ static esp_err_t read_response_line(sdi12_bus_t *bus, char *out_buffer, size_t o
     uint32_t aux_timeout = timeout != 0 ? timeout : SDI12_DEFAULT_RESPONSE_TIMEOUT;
 
     rmt_receive_config_t receive_config = {
-    
-    // Check @link https://github.com/espressif/esp-idf/issues/11262.
-    // Max range_min_ns value use rmt group resolution and must be a value allocatable in a 8-bit width reg.
-    // Group resolution is the same as RMT source clock
-// #if SDI12_RMT_CLK_SRC == RMT_CLK_SRC_REF_TICK
-//         // Group resolution = 1Mhz
-//         .signal_range_min_ns = 255 * 1000,
-// #else
+
+        // Check @link https://github.com/espressif/esp-idf/issues/11262.
+        // Max range_min_ns value use rmt group resolution and must be a value allocatable in a 8-bit width reg.
+        // Group resolution is the same as RMT source clock
+        // #if SDI12_RMT_CLK_SRC == RMT_CLK_SRC_REF_TICK
+        //         // Group resolution = 1Mhz
+        //         .signal_range_min_ns = 255 * 1000,
+        // #else
         // Group resolution = 80Mhz
         .signal_range_min_ns = 3186,
-// #endif
+        // #endif
         .signal_range_max_ns = (SDI12_BREAK_US + 500) * 1000, // the longest duration for SDI12 signal is break signal
     };
 
@@ -401,7 +412,7 @@ static void encode_cmd(sdi12_bus_timing_t *timing, const char *cmd, rmt_symbol_w
                     rmt_symbols_out[rmt_symbol_index].duration1 = SDI12_BIT_WIDTH_US;
                     break;
 
-                default:                 // case 1 to 7, char bits
+                default: // case 1 to 7, char bits
 
                     if (cur_byte & 0x01) // bit == 1; Inverse -> 0 to write
                     {
@@ -558,6 +569,11 @@ esp_err_t sdi12_bus_send_cmd(sdi12_bus_handle_t bus, const char *cmd, bool crc, 
                     out_buffer[response_len - 3] = '\0'; // Clear CRC string
                 }
             }
+            
+            // M, V, H indeed respond something like "atttn", "atttnn" or "atttnnn"
+            // but this is only informing the time that we must wait for querying the results
+            // so, there will not be any automatic response from the sensor
+            #if 0
             else if (cmd[1] == 'M' || cmd[1] == 'V' || cmd[1] == 'H')
             {
                 // Command aM..! and aV..! require service request
@@ -588,6 +604,7 @@ esp_err_t sdi12_bus_send_cmd(sdi12_bus_handle_t bus, const char *cmd, bool crc, 
                     }
                 }
             }
+            #endif
         }
     }
     else
@@ -644,10 +661,11 @@ esp_err_t sdi12_new_bus(sdi12_bus_config_t *config, sdi12_bus_handle_t *sdi12_bu
     // ESP_RETURN_ON_FALSE(GPIO_IS_VALID_DIGITAL_IO_PAD(config->gpio_num), ESP_ERR_INVALID_ARG, TAG, "Invalid GPIO pin");
     ESP_RETURN_ON_FALSE(GPIO_IS_VALID_OUTPUT_GPIO(config->gpio_num), ESP_ERR_INVALID_ARG, TAG, "Invalid GPIO pin");
 
-    if (config->oe_num != -1) {
+    if (config->oe_num != -1)
+    {
         ESP_RETURN_ON_FALSE(GPIO_IS_VALID_OUTPUT_GPIO(config->oe_num), ESP_ERR_INVALID_ARG, TAG, "Invalid GPIO pin");
     }
-    
+
     sdi12_bus_t *bus = calloc(1, sizeof(sdi12_bus_t));
 
     ESP_RETURN_ON_FALSE(bus, ESP_ERR_NO_MEM, TAG, "can't allocate bus");
